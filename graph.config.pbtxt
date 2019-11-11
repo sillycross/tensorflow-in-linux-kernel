@@ -1,0 +1,39 @@
+feed {
+  id {
+    node_name: "global/inference_inputs"
+  }
+  shape {
+    dim {
+      size: 1
+    }
+    dim {
+      size: 1
+    }
+    dim {
+      size: 9
+    }
+  }
+}
+feed {
+  id {
+    node_name: "global/lstm_state_in"
+  }
+  shape {
+    dim {
+      size: 1
+    }
+    dim {
+      size: 64
+    }
+  }
+}
+fetch {
+  id {
+    node_name: "global/action_probs"
+  }
+}
+fetch {
+  id {
+    node_name: "global/lstm_state_out"
+  }
+} 

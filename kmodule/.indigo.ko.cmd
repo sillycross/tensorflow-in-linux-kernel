@@ -1,0 +1,1 @@
+cmd_/home/lemon/indigo-in-kernel/kmodule/indigo.ko := ld -r -m elf_x86_64 -z max-page-size=0x200000 -T ./scripts/module-common.lds --build-id  -o /home/lemon/indigo-in-kernel/kmodule/indigo.ko /home/lemon/indigo-in-kernel/kmodule/indigo.o /home/lemon/indigo-in-kernel/kmodule/indigo.mod.o ;  true

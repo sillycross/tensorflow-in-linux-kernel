@@ -1,0 +1,116 @@
+diff --git a/dagger/gen.py b/dagger/gen.py
+new file mode 100644
+index 0000000..02bcc67
+--- /dev/null
++++ b/dagger/gen.py
+@@ -0,0 +1,49 @@
++import argparse
++import project_root
++import numpy as np
++import tensorflow as tf
++from os import path
++from models import DaggerLSTM
++
++
++class Learner(object):
++    def __init__(self, state_dim, action_cnt, restore_vars):
++        self.aug_state_dim = state_dim + action_cnt
++        self.action_cnt = action_cnt
++        self.prev_action = action_cnt - 1
++
++        with tf.variable_scope('global'):
++            self.model = DaggerLSTM(
++                state_dim=self.aug_state_dim, action_cnt=action_cnt)
++
++        self.lstm_state = self.model.zero_init_state(1)
++
++        self.sess = tf.Session()
++
++        # restore saved variables
++        saver = tf.train.Saver(self.model.trainable_vars)
++        saver.restore(self.sess, restore_vars)
++
++        # init the remaining vars, especially those created by optimizer
++        uninit_vars = set(tf.global_variables())
++        uninit_vars -= set(self.model.trainable_vars)
++        self.sess.run(tf.variables_initializer(uninit_vars))
++
++
++model_path = path.join(project_root.DIR, 'dagger', 'model', 'model')
++
++learner = Learner(
++  state_dim=4,
++  action_cnt=5,
++  restore_vars=model_path) 
++  
++print(learner.model.trainable_vars)
++
++output_graph_def = tf.graph_util.convert_variables_to_constants(
++  learner.sess, 
++  tf.get_default_graph().as_graph_def(), 
++  ["global/action_probs", "global/lstm_state_out"]) 
++  
++with tf.gfile.GFile("graph.pb", "wb") as f:
++    f.write(output_graph_def.SerializeToString())
++  
+diff --git a/dagger/models.py b/dagger/models.py
+index 2ef8229..a8fa6ec 100644
+--- a/dagger/models.py
++++ b/dagger/models.py
+@@ -41,34 +41,26 @@ class DaggerLSTM(object):
+         self.add_one = self.cnt.assign_add(1.0)
+ 
+         # self.input: [batch_size, max_time, state_dim]
+-        self.input = tf.placeholder(tf.float32, [None, None, state_dim])
++        self.input = tf.placeholder(tf.float32, [None, None, state_dim], name="inference_inputs")
+ 
+         self.num_layers = 1
+         self.lstm_dim = 32
+-        stacked_lstm = rnn.MultiRNNCell([rnn.BasicLSTMCell(self.lstm_dim)
+-            for _ in xrange(self.num_layers)])
++        stacked_lstm = rnn.MultiRNNCell([rnn.BasicLSTMCell(self.lstm_dim, state_is_tuple=False)
++            for _ in range(self.num_layers)], state_is_tuple=False)
+ 
+-        self.state_in = []
+-        state_tuple_in = []
+-        for _ in xrange(self.num_layers):
+-            c_in = tf.placeholder(tf.float32, [None, self.lstm_dim])
+-            h_in = tf.placeholder(tf.float32, [None, self.lstm_dim])
+-            self.state_in.append((c_in, h_in))
+-            state_tuple_in.append(rnn.LSTMStateTuple(c_in, h_in))
+-
+-        self.state_in = tuple(self.state_in)
+-        state_tuple_in = tuple(state_tuple_in)
++        self.state_in = tf.placeholder(tf.float32, [1, self.lstm_dim * self.num_layers * 2], name="lstm_state_in")
+ 
+         # self.output: [batch_size, max_time, lstm_dim]
+-        output, state_tuple_out = tf.nn.dynamic_rnn(
+-            stacked_lstm, self.input, initial_state=state_tuple_in)
++        output, temp_state_out = tf.nn.dynamic_rnn(
++            stacked_lstm, self.input, initial_state=self.state_in)
+ 
+-        self.state_out = self.convert_state_out(state_tuple_out)
++        self.state_out = tf.identity(temp_state_out, name="lstm_state_out")
+ 
+         # map output to scores
+         self.action_scores = layers.linear(output, action_cnt)
+-        self.action_probs = tf.nn.softmax(self.action_scores)
+-
++        temp_action_probs = tf.nn.softmax(self.action_scores)
++        self.action_probs = tf.identity(temp_action_probs, name="action_probs")
++		
+         self.trainable_vars = tf.get_collection(
+             tf.GraphKeys.TRAINABLE_VARIABLES, tf.get_variable_scope().name)
+ 
+@@ -80,10 +72,5 @@ class DaggerLSTM(object):
+         return tuple(state_out)
+ 
+     def zero_init_state(self, batch_size):
+-        init_state = []
+-        for _ in xrange(self.num_layers):
+-            c_init = np.zeros([batch_size, self.lstm_dim], np.float32)
+-            h_init = np.zeros([batch_size, self.lstm_dim], np.float32)
+-            init_state.append((c_init, h_init))
+-
++        init_state = np.zeros([batch_size, self.lstm_dim * self.num_layers * 2], np.float32)
+         return init_state
