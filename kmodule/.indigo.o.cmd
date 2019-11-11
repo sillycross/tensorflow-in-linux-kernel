@@ -1,1 +1,0 @@
-cmd_/home/lemon/indigo-in-kernel/kmodule/indigo.o := ld -m elf_x86_64 -z max-page-size=0x200000   -r -o /home/lemon/indigo-in-kernel/kmodule/indigo.o /home/lemon/indigo-in-kernel/kmodule/indigo_utils.o /home/lemon/indigo-in-kernel/kmodule/main.o /home/lemon/indigo-in-kernel/kmodule/math.o /home/lemon/indigo-in-kernel/kmodule/libgraph.pic.a 
